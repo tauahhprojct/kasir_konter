@@ -1,0 +1,6 @@
+{
+  "name": "KasirKonter — Pembukuan Agen Pulsa & PPOB",
+  "description": "Aplikasi pencatatan pemasukan, pengeluaran, modal saldo server, dan tagihan kasbon khusus agen pulsa dan loket pembayaran PPOB agar bebas boncos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
