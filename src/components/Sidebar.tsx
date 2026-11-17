@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { User } from 'firebase/auth';
+import { AuthUser } from '../supabase';
 import {
   LayoutDashboard,
   BookOpen,
@@ -23,7 +23,7 @@ interface SidebarProps {
   onRenameShop: (name: string) => void;
   kasbonCount: number;
   kasbonTotal: number;
-  user: User | null;
+  user: AuthUser | null;
   isCloudActive: boolean;
   onSignInGoogle: () => void;
   onSignOut: () => void;
@@ -194,7 +194,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   <div className="text-[11px] text-slate-500 truncate flex items-center gap-1">
                     <Cloud className="w-3 h-3 text-teal-700 shrink-0" />
-                    <span>{isCloudActive ? 'Firestore Aktif' : 'Menghubungkan...'}</span>
+                    <span>{isCloudActive ? 'Supabase Aktif' : 'Menghubungkan...'}</span>
                   </div>
                 </div>
               </div>

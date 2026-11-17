@@ -1,11 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  User,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut,
-} from 'firebase/auth';
-import {
   Timestamp,
   collection,
   deleteDoc,
@@ -18,9 +12,10 @@ import {
   updateDoc,
   where,
   writeBatch,
-} from 'firebase/firestore';
-import { auth, db, googleProvider } from '../firebase';
-import { OperationType, handleFirestoreError } from '../utils/firestoreErrors';
+  db,
+} from '../utils/supabaseCompat';
+import { AuthUser, mapSupabaseUser, supabase } from '../supabase';
+import { OperationType, handleDatabaseError } from '../utils/databaseErrors';
 import {
   AuditRecord,
   PaymentStatus,
@@ -67,6 +62,18 @@ function timestampToIso(val: unknown): string {
     return (val as { toDate: () => Date }).toDate().toISOString();
   }
   return new Date().toISOString();
+}
+
+function getCloudErrorMessage(error: unknown): string {
+  const code = (error as { code?: string })?.code || '';
+  const messages: Record<string, string> = {
+    '42501': 'Akses database ditolak oleh kebijakan keamanan Supabase (RLS).',
+    '42P01': 'Tabel database belum ada. Jalankan supabase/schema.sql di SQL Editor proyek.',
+    'PGRST205': 'Tabel belum tersedia di API Supabase. Jalankan schema.sql dan periksa Data API.',
+    'PGRST204': 'Kolom database tidak cocok dengan aplikasi. Periksa supabase/schema.sql.',
+    '401': 'Sesi login tidak dikenali oleh Supabase. Keluar lalu masuk kembali.',
+  };
+  return messages[code] || `Login berhasil, tetapi koneksi database gagal${code ? ` (${code})` : ''}. Periksa konfigurasi Supabase dan tabel database.`;
 }
 
 function loadLocalState(): StoredState {
@@ -154,7 +161,7 @@ function applyTransactionToLocalWallets(
   );
 }
 
-function buildFirestoreTxPayload(
+function buildTransactionPayload(
   uid: string,
   tx: Omit<Transaction, 'id' | 'createdAt' | 'profit'> & { profit: number },
   includePaidAt: boolean
@@ -196,9 +203,10 @@ function buildFirestoreTxPayload(
 export function useLedgerStore() {
   const [localState, setLocalState] = useState<StoredState>(loadLocalState);
   const [cloudState, setCloudState] = useState<StoredState | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
 
   const localStateRef = useRef(localState);
@@ -218,9 +226,15 @@ export function useLedgerStore() {
     }
   }, [localState, user]);
 
-  // Listen to Firebase Auth
+  // Listen to Supabase Auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (nextUser) => {
+    supabase.auth.getSession().then(({ data }) => {
+      const nextUser = mapSupabaseUser(data.session?.user || null);
+      setUser(nextUser);
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = mapSupabaseUser(session?.user || null);
       setUser(nextUser);
       setAuthReady(true);
       if (!nextUser) {
@@ -228,10 +242,10 @@ export function useLedgerStore() {
         setCloudLoading(false);
       }
     });
-    return () => unsub();
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Bootstrap shop & attach real-time Firestore listeners when authenticated
+  // Bootstrap shop & attach real-time Supabase table listeners when authenticated
   useEffect(() => {
     if (!authReady || !user || !user.emailVerified) return;
 
@@ -241,13 +255,17 @@ export function useLedgerStore() {
 
     async function initAndSubscribe() {
       setCloudLoading(true);
+      setCloudError(null);
       const shopRef = doc(db, 'shops', uid);
       let shopSnap;
       try {
         shopSnap = await getDoc(shopRef);
       } catch (err) {
-        if (!cancelled) setCloudLoading(false);
-        handleFirestoreError(err, OperationType.GET, `shops/${uid}`);
+        if (!cancelled) {
+          setCloudLoading(false);
+          setCloudError(getCloudErrorMessage(err));
+        }
+        handleDatabaseError(err, OperationType.GET, `shops/${uid}`);
       }
 
       try {
@@ -285,7 +303,7 @@ export function useLedgerStore() {
             });
           }
           for (const t of seed.transactions) {
-            const payload = buildFirestoreTxPayload(
+            const payload = buildTransactionPayload(
               uid,
               t,
               t.status === PaymentStatus.PAID
@@ -297,8 +315,9 @@ export function useLedgerStore() {
       } catch (err) {
         if (!cancelled) {
           setCloudLoading(false);
+          setCloudError(getCloudErrorMessage(err));
         }
-        handleFirestoreError(err, OperationType.WRITE, `shops/${uid}`);
+        handleDatabaseError(err, OperationType.WRITE, `shops/${uid}`);
       }
 
       if (cancelled) return;
@@ -336,7 +355,7 @@ export function useLedgerStore() {
             loadedFlags.shop = true;
             syncSnapshot();
           },
-          (error) => handleFirestoreError(error, OperationType.GET, `shops/${uid}`)
+          (error) => { setCloudError(getCloudErrorMessage(error)); handleDatabaseError(error, OperationType.GET, `shops/${uid}`); }
         )
       );
 
@@ -359,7 +378,7 @@ export function useLedgerStore() {
             loadedFlags.wallets = true;
             syncSnapshot();
           },
-          (error) => handleFirestoreError(error, OperationType.LIST, `shops/${uid}/wallets`)
+          (error) => { setCloudError(getCloudErrorMessage(error)); handleDatabaseError(error, OperationType.LIST, `shops/${uid}/wallets`); }
         )
       );
 
@@ -396,7 +415,7 @@ export function useLedgerStore() {
             loadedFlags.tx = true;
             syncSnapshot();
           },
-          (error) => handleFirestoreError(error, OperationType.LIST, `shops/${uid}/transactions`)
+          (error) => { setCloudError(getCloudErrorMessage(error)); handleDatabaseError(error, OperationType.LIST, `shops/${uid}/transactions`); }
         )
       );
 
@@ -409,7 +428,7 @@ export function useLedgerStore() {
               return {
                 id: d.id,
                 name: String(data.name || ''),
-                category: data.category,
+                category: data.category as ProductPreset['category'],
                 costPrice: Number(data.costPrice) || 0,
                 sellPrice: Number(data.sellPrice) || 0,
                 defaultServerId: String(data.defaultServerId || ''),
@@ -418,7 +437,7 @@ export function useLedgerStore() {
             loadedFlags.products = true;
             syncSnapshot();
           },
-          (error) => handleFirestoreError(error, OperationType.LIST, `shops/${uid}/products`)
+          (error) => { setCloudError(getCloudErrorMessage(error)); handleDatabaseError(error, OperationType.LIST, `shops/${uid}/products`); }
         )
       );
 
@@ -444,7 +463,7 @@ export function useLedgerStore() {
             loadedFlags.audits = true;
             syncSnapshot();
           },
-          (error) => handleFirestoreError(error, OperationType.LIST, `shops/${uid}/audits`)
+          (error) => { setCloudError(getCloudErrorMessage(error)); handleDatabaseError(error, OperationType.LIST, `shops/${uid}/audits`); }
         )
       );
     }
@@ -462,20 +481,97 @@ export function useLedgerStore() {
   const signInWithGoogle = useCallback(async () => {
     setAuthError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+      if (error) throw error;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('popup-closed-by-user')) {
         setAuthError('Login dibatalkan.');
       } else {
-        setAuthError('Gagal masuk dengan Google. Pastikan pop-up browser diizinkan.');
+        const code = (err as { code?: string }).code;
+        const messages: Record<string, string> = {
+          'auth/unauthorized-domain': 'Domain aplikasi belum diizinkan di Supabase Authentication → Settings → Authorized domains.',
+          'auth/operation-not-allowed': 'Login Google belum diaktifkan di Supabase Authentication → Sign-in method.',
+          'auth/popup-blocked': 'Pop-up login diblokir browser. Izinkan pop-up lalu coba lagi.',
+          'auth/network-request-failed': 'Koneksi ke Supabase gagal. Periksa internet dan URL/key Supabase.',
+          'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'API key Supabase tidak valid. Periksa URL dan publishable key.',
+        };
+        setAuthError(messages[code || ''] || `Gagal masuk (${code || msg}). Periksa konfigurasi Supabase Authentication.`);
       }
+    }
+  }, []);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+      if (!data.user?.email_confirmed_at) {
+        await supabase.auth.resend({ type: 'signup', email: email.trim() });
+        await supabase.auth.signOut();
+        throw new Error('email-not-verified');
+      }
+    } catch (err) {
+      const code = (err as { code?: string }).code || (err as { status?: number }).status?.toString();
+      const message = err instanceof Error ? err.message : '';
+      const friendly: Record<string, string> = {
+        'auth/invalid-email': 'Format email tidak valid.',
+        'auth/invalid-credential': 'Email atau kata sandi salah.',
+        'auth/user-not-found': 'Akun dengan email tersebut belum terdaftar.',
+        'auth/wrong-password': 'Email atau kata sandi salah.',
+        'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi nanti.',
+        'auth/operation-not-allowed': 'Login email belum diaktifkan di Supabase Dashboard.',
+        'auth/unauthorized-domain': 'Domain aplikasi belum ditambahkan ke Authorized domains di Supabase Dashboard.',
+        'auth/invalid-api-key': 'API key Supabase tidak valid. Periksa URL dan publishable key Supabase.',
+        'auth/network-request-failed': 'Koneksi gagal. Periksa internet lalu coba lagi.',
+      };
+      setAuthError(message === 'email-not-verified'
+        ? 'Email belum diverifikasi. Kami mengirim tautan verifikasi; cek inbox atau folder spam.'
+        : friendly[code || ''] || `Gagal masuk${code ? ` (${code})` : ''}. Periksa konfigurasi Supabase dan akun.`);
+      throw err;
+    }
+  }, []);
+
+  const createEmailAccount = useCallback(async (email: string, password: string) => {
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
+      if (error) throw error;
+      setAuthError('Akun dibuat. Buka tautan verifikasi yang kami kirim ke email, lalu masuk.');
+    } catch (err) {
+      const code = (err as { code?: string }).code || (err as { status?: number }).status?.toString();
+      const friendly: Record<string, string> = {
+        'auth/invalid-email': 'Format email tidak valid.',
+        'auth/email-already-in-use': 'Email ini sudah terdaftar. Silakan masuk.',
+        'auth/weak-password': 'Kata sandi minimal 6 karakter.',
+        'auth/operation-not-allowed': 'Pendaftaran email belum diaktifkan di Supabase Dashboard.',
+        'auth/unauthorized-domain': 'Domain aplikasi belum ditambahkan ke Authorized domains di Supabase Dashboard.',
+        'auth/invalid-api-key': 'API key Supabase tidak valid. Periksa URL dan publishable key Supabase.',
+        'auth/network-request-failed': 'Koneksi gagal. Periksa internet lalu coba lagi.',
+      };
+      setAuthError(friendly[code || ''] || `Gagal membuat akun${code ? ` (${code})` : ''}. Periksa konfigurasi Supabase.`);
+      throw err;
+    }
+  }, []);
+
+  const resetEmailPassword = useCallback(async (email: string) => {
+    setAuthError(null);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin });
+      if (error) throw error;
+      setAuthError('Tautan atur ulang kata sandi sudah dikirim. Cek inbox atau folder spam.');
+    } catch (err) {
+      const code = (err as { code?: string }).code || (err as { status?: number }).status?.toString();
+      setAuthError(code === 'auth/user-not-found'
+        ? 'Email tersebut belum terdaftar.'
+        : 'Gagal mengirim tautan. Periksa email dan koneksi internet.');
+      throw err;
     }
   }, []);
 
   const signOutUser = useCallback(async () => {
     setAuthError(null);
-    await signOut(auth);
+    await supabase.auth.signOut();
   }, []);
 
   const setShopName = useCallback(
@@ -489,7 +585,7 @@ export function useLedgerStore() {
             updatedAt: serverTimestamp(),
           });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, path);
+          handleDatabaseError(err, OperationType.UPDATE, path);
         }
         return;
       }
@@ -527,7 +623,7 @@ export function useLedgerStore() {
           const batch = writeBatch(db);
           batch.set(
             doc(db, 'shops', uid, 'transactions', id),
-            buildFirestoreTxPayload(uid, newTx, newTx.status === PaymentStatus.PAID)
+            buildTransactionPayload(uid, newTx, newTx.status === PaymentStatus.PAID)
           );
 
           const walletUpdates = computeWalletDeltas(cloudState.wallets, newTx, 1);
@@ -540,7 +636,7 @@ export function useLedgerStore() {
 
           await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, path);
+          handleDatabaseError(err, OperationType.WRITE, path);
         }
         return;
       }
@@ -575,7 +671,7 @@ export function useLedgerStore() {
           }
           await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, path);
+          handleDatabaseError(err, OperationType.DELETE, path);
         }
         return;
       }
@@ -616,7 +712,7 @@ export function useLedgerStore() {
           });
           await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, path);
+          handleDatabaseError(err, OperationType.UPDATE, path);
         }
         return;
       }
@@ -661,7 +757,7 @@ export function useLedgerStore() {
             updatedAt: serverTimestamp(),
           });
         } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, path);
+          handleDatabaseError(err, OperationType.CREATE, path);
         }
         return;
       }
@@ -688,7 +784,7 @@ export function useLedgerStore() {
           if (cleanName) updateData.name = cleanName;
           await updateDoc(doc(db, 'shops', uid, 'wallets', walletId), updateData);
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, path);
+          handleDatabaseError(err, OperationType.UPDATE, path);
         }
         return;
       }
@@ -734,7 +830,7 @@ export function useLedgerStore() {
             const adjId = makeSafeId('tx-adj');
             batch.set(
               doc(db, 'shops', uid, 'transactions', adjId),
-              buildFirestoreTxPayload(
+              buildTransactionPayload(
                 uid,
                 {
                   type: TransactionType.ADJUSTMENT,
@@ -763,7 +859,7 @@ export function useLedgerStore() {
           }
           await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, path);
+          handleDatabaseError(err, OperationType.WRITE, path);
         }
         return;
       }
@@ -842,7 +938,7 @@ export function useLedgerStore() {
             updatedAt: serverTimestamp(),
           });
         } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, path);
+          handleDatabaseError(err, OperationType.CREATE, path);
         }
         return;
       }
@@ -873,7 +969,7 @@ export function useLedgerStore() {
             updatedAt: serverTimestamp(),
           });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, path);
+          handleDatabaseError(err, OperationType.UPDATE, path);
         }
         return;
       }
@@ -894,7 +990,7 @@ export function useLedgerStore() {
         try {
           await deleteDoc(doc(db, 'shops', uid, 'products', id));
         } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, path);
+          handleDatabaseError(err, OperationType.DELETE, path);
         }
         return;
       }
@@ -942,7 +1038,7 @@ export function useLedgerStore() {
           }
           await batch.commit();
         } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, path);
+          handleDatabaseError(err, OperationType.WRITE, path);
         }
         return;
       }
@@ -994,12 +1090,12 @@ export function useLedgerStore() {
         for (const t of INITIAL_TRANSACTIONS) {
           batch.set(
             doc(db, 'shops', uid, 'transactions', t.id),
-            buildFirestoreTxPayload(uid, t, t.status === PaymentStatus.PAID)
+            buildTransactionPayload(uid, t, t.status === PaymentStatus.PAID)
           );
         }
         await batch.commit();
       } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, path);
+        handleDatabaseError(err, OperationType.WRITE, path);
       }
       return;
     }
@@ -1082,11 +1178,11 @@ export function useLedgerStore() {
           for (const t of next.transactions) {
             batch.set(
               doc(db, 'shops', uid, 'transactions', t.id),
-              buildFirestoreTxPayload(uid, t, t.status === PaymentStatus.PAID)
+              buildTransactionPayload(uid, t, t.status === PaymentStatus.PAID)
             );
           }
           batch.commit().catch((err) =>
-            handleFirestoreError(err, OperationType.WRITE, `shops/${uid}`)
+            handleDatabaseError(err, OperationType.WRITE, `shops/${uid}`)
           );
           return true;
         }
@@ -1110,8 +1206,12 @@ export function useLedgerStore() {
     authReady,
     isCloudActive,
     cloudLoading,
+    cloudError,
     authError,
     signInWithGoogle,
+    signInWithEmail,
+    createEmailAccount,
+    resetEmailPassword,
     signOutUser,
     setShopName,
     addTransaction,

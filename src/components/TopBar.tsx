@@ -1,12 +1,12 @@
 import React from 'react';
-import { User } from 'firebase/auth';
+import { AuthUser } from '../supabase';
 import { LogIn, Plus } from 'lucide-react';
 import { ActiveTab } from '../types/ledger';
 
 interface TopBarProps {
   activeTab: ActiveTab;
   shopName: string;
-  user: User | null;
+  user: AuthUser | null;
   onSignInGoogle: () => void;
   onOpenNewTransaction: () => void;
 }

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { User } from 'firebase/auth';
+import { AuthUser } from '../supabase';
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -27,7 +27,7 @@ import { ModalMode } from './TransactionModal';
 interface DashboardViewProps {
   wallets: Wallet[];
   transactions: Transaction[];
-  user: User | null;
+  user: AuthUser | null;
   cloudLoading: boolean;
   authError: string | null;
   onSignInGoogle: () => void;
@@ -170,7 +170,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div>
               <div className="text-sm font-semibold text-slate-900">
-                Aktifkan Sinkronisasi Database Cloud (Firestore)
+                Aktifkan Sinkronisasi Database Cloud (Supabase)
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 {authError ||

@@ -11,6 +11,7 @@ import { CatalogView } from './components/CatalogView';
 import { ModalMode, TransactionModal } from './components/TransactionModal';
 import { SettleKasbonModal } from './components/SettleKasbonModal';
 import { StartFreshModal } from './components/StartFreshModal';
+import { AuthModal } from './components/AuthModal';
 
 export default function App() {
   const {
@@ -22,8 +23,12 @@ export default function App() {
     user,
     isCloudActive,
     cloudLoading,
+    cloudError,
     authError,
     signInWithGoogle,
+    signInWithEmail,
+    createEmailAccount,
+    resetEmailPassword,
     signOutUser,
     setShopName,
     addTransaction,
@@ -47,6 +52,7 @@ export default function App() {
   const [prefilledPreset, setPrefilledPreset] = useState<ProductPreset | null>(null);
   const [kasbonToSettle, setKasbonToSettle] = useState<Transaction | null>(null);
   const [startFreshOpen, setStartFreshOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const unpaidKasbons = useMemo(
     () =>
@@ -78,7 +84,7 @@ export default function App() {
         kasbonTotal={kasbonTotal}
         user={user}
         isCloudActive={isCloudActive}
-        onSignInGoogle={signInWithGoogle}
+        onSignInGoogle={() => setAuthOpen(true)}
         onSignOut={signOutUser}
         onExportBackup={exportBackupJSON}
         onImportBackup={importBackupJSON}
@@ -91,11 +97,16 @@ export default function App() {
           activeTab={activeTab}
           shopName={shopName}
           user={user}
-          onSignInGoogle={signInWithGoogle}
+          onSignInGoogle={() => setAuthOpen(true)}
           onOpenNewTransaction={() => handleOpenModal('sale', null)}
         />
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-8 max-w-[1440px] w-full mx-auto">
+          {cloudError && (
+            <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+              {cloudError}
+            </div>
+          )}
           {activeTab === 'dashboard' && (
             <DashboardView
               wallets={wallets}
@@ -103,7 +114,7 @@ export default function App() {
               user={user}
               cloudLoading={cloudLoading}
               authError={authError}
-              onSignInGoogle={signInWithGoogle}
+              onSignInGoogle={() => setAuthOpen(true)}
               onNavigate={setActiveTab}
               onOpenModal={(mode) => handleOpenModal(mode, null)}
               onSelectSettleKasbon={setKasbonToSettle}
@@ -174,6 +185,16 @@ export default function App() {
         isOpen={startFreshOpen}
         onClose={() => setStartFreshOpen(false)}
         onConfirm={startFresh}
+      />
+
+      <AuthModal
+        isOpen={authOpen}
+        error={authError}
+        onClose={() => setAuthOpen(false)}
+        onGoogle={signInWithGoogle}
+        onEmailSignIn={signInWithEmail}
+        onEmailRegister={createEmailAccount}
+        onPasswordReset={resetEmailPassword}
       />
     </div>
   );
