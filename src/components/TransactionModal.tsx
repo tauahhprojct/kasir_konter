@@ -135,7 +135,32 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setTopupDestId(defaultServer);
     setTopupAmount('');
     setTopupAdminFee('0');
-  }, [isOpen, initialMode, prefilledPreset, wallets, onlyServerWallets, serverWallets, cashAndBankWallets]);
+    // Initialize the form when the modal opens or its requested mode changes.
+    // Wallet snapshots can update during Supabase sync; they must not reset the
+    // user's current mode (for example, from Top Up Server back to Sale).
+  }, [isOpen, initialMode, prefilledPreset]);
+
+  useEffect(() => {
+    if (!isOpen || wallets.length === 0) return;
+
+    const defaultServer =
+      onlyServerWallets[0]?.id || serverWallets[0]?.id || wallets[0]?.id || '';
+    const defaultCash =
+      cashAndBankWallets.find((w) => w.kind === 'cash')?.id ||
+      cashAndBankWallets[0]?.id ||
+      wallets[0]?.id ||
+      '';
+    const defaultBank =
+      cashAndBankWallets.find((w) => w.kind === 'bank')?.id || defaultCash;
+
+    // The modal may open before cloud wallets finish loading. Fill defaults
+    // once they arrive without overwriting values the user has already chosen.
+    setSaleSourceWalletId((value) => value || defaultServer);
+    setSaleDestWalletId((value) => value || defaultCash);
+    setExpenseWalletId((value) => value || defaultCash);
+    setTopupSourceId((value) => value || defaultBank);
+    setTopupDestId((value) => value || defaultServer);
+  }, [isOpen, wallets, onlyServerWallets, serverWallets, cashAndBankWallets]);
 
   if (!isOpen) return null;
 
