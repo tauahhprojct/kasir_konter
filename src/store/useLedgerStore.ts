@@ -619,6 +619,16 @@ export function useLedgerStore() {
       if (user && user.emailVerified && cloudState) {
         const uid = user.uid;
         const path = `shops/${uid}/transactions/${id}`;
+        const originalCloudState = cloudState;
+        const walletDeltas = computeWalletDeltas(cloudState.wallets, newTx, 1);
+        // Update the screen immediately; the database write continues in the background.
+        setCloudState((prev) => prev ? ({
+          ...prev,
+          transactions: [newTx, ...prev.transactions].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          ),
+          wallets: applyTransactionToLocalWallets(prev.wallets, newTx, 1),
+        }) : prev);
         try {
           const batch = writeBatch(db);
           batch.set(
@@ -626,8 +636,7 @@ export function useLedgerStore() {
             buildTransactionPayload(uid, newTx, newTx.status === PaymentStatus.PAID)
           );
 
-          const walletUpdates = computeWalletDeltas(cloudState.wallets, newTx, 1);
-          for (const u of walletUpdates) {
+          for (const u of walletDeltas) {
             batch.update(doc(db, 'shops', uid, 'wallets', u.wallet.id), {
               balance: u.newBalance,
               updatedAt: serverTimestamp(),
@@ -636,6 +645,11 @@ export function useLedgerStore() {
 
           await batch.commit();
         } catch (err) {
+          setCloudState((prev) => prev ? ({
+            ...prev,
+            transactions: prev.transactions.filter((t) => t.id !== id),
+            wallets: applyTransactionToLocalWallets(prev.wallets, newTx, -1),
+          }) : originalCloudState);
           handleDatabaseError(err, OperationType.WRITE, path);
         }
         return;

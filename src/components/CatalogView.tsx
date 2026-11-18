@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Plus, Search, ShoppingBag, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Pencil, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import { ProductCategory, ProductPreset, Wallet } from '../types/ledger';
 import { formatRupiah } from '../utils/format';
 
@@ -16,6 +16,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   products,
   wallets,
   onAddProduct,
+  onUpdateProduct,
   onDeleteProduct,
   onQuickSell,
 }) => {
@@ -30,6 +31,33 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   const [defaultServerId, setDefaultServerId] = useState(
     wallets.find((w) => w.kind === 'server')?.id || wallets[0]?.id || ''
   );
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: '', category: ProductCategory.PULSA, costPrice: '', sellPrice: '', defaultServerId: '' });
+
+  const startEdit = (product: ProductPreset) => {
+    setEditingId(product.id);
+    setEditDraft({
+      name: product.name,
+      category: product.category,
+      costPrice: String(product.costPrice),
+      sellPrice: String(product.sellPrice),
+      defaultServerId: product.defaultServerId,
+    });
+  };
+
+  const saveEdit = (productId: string) => {
+    const cost = Number(editDraft.costPrice) || 0;
+    const sell = Number(editDraft.sellPrice) || 0;
+    if (!editDraft.name.trim() || cost <= 0 || sell <= 0) return;
+    onUpdateProduct(productId, {
+      name: editDraft.name.trim(),
+      category: editDraft.category,
+      costPrice: cost,
+      sellPrice: sell,
+      defaultServerId: editDraft.defaultServerId,
+    });
+    setEditingId(null);
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -239,13 +267,22 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
                 return (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2.5 px-4 font-medium text-slate-900">{p.name}</td>
-                    <td className="py-2.5 px-4 text-xs text-slate-500">{p.category}</td>
+                    {editingId === p.id ? (
+                      <>
+                        <td className="py-2 px-4"><input aria-label="Nama produk" value={editDraft.name} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} className="w-full min-w-36 rounded border border-slate-300 px-2 py-1 text-sm" /></td>
+                        <td className="py-2 px-4"><select aria-label="Kategori" value={editDraft.category} onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value as ProductCategory })} className="rounded border border-slate-300 px-2 py-1 text-xs">{Object.values(ProductCategory).map((c) => <option key={c} value={c}>{c}</option>)}</select></td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2.5 px-4 font-medium text-slate-900">{p.name}</td>
+                        <td className="py-2.5 px-4 text-xs text-slate-500">{p.category}</td>
+                      </>
+                    )}
                     <td className="py-2.5 px-4 text-right font-mono tabular-nums text-xs text-slate-600">
-                      {formatRupiah(p.costPrice)}
+                      {editingId === p.id ? <input aria-label="Harga modal" type="number" min={1} value={editDraft.costPrice} onChange={(e) => setEditDraft({ ...editDraft, costPrice: e.target.value })} className="w-28 rounded border border-slate-300 px-2 py-1 text-right" /> : formatRupiah(p.costPrice)}
                     </td>
                     <td className="py-2.5 px-4 text-right font-mono tabular-nums text-xs font-semibold text-slate-900">
-                      {formatRupiah(p.sellPrice)}
+                      {editingId === p.id ? <input aria-label="Harga jual" type="number" min={1} value={editDraft.sellPrice} onChange={(e) => setEditDraft({ ...editDraft, sellPrice: e.target.value })} className="w-28 rounded border border-slate-300 px-2 py-1 text-right" /> : formatRupiah(p.sellPrice)}
                     </td>
                     <td
                       className={`py-2.5 px-4 text-right font-mono tabular-nums text-xs font-semibold ${
@@ -266,6 +303,14 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     </td>
                     <td className="py-2.5 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-2">
+                        {editingId === p.id ? (
+                          <>
+                            <select aria-label="Dompet server" value={editDraft.defaultServerId} onChange={(e) => setEditDraft({ ...editDraft, defaultServerId: e.target.value })} className="max-w-28 rounded border border-slate-300 px-1 py-1 text-xs">{wallets.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+                            <button type="button" onClick={() => saveEdit(p.id)} aria-label="Simpan perubahan" className="rounded p-1.5 text-emerald-700 hover:bg-emerald-50"><Check className="h-4 w-4" /></button>
+                            <button type="button" onClick={() => setEditingId(null)} aria-label="Batal edit" className="rounded p-1.5 text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+                          </>
+                        ) : <>
+                        <button type="button" onClick={() => startEdit(p)} aria-label={`Ubah ${p.name}`} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><Pencil className="h-4 w-4" /></button>
                         <button
                           type="button"
                           onClick={() => onQuickSell(p)}
@@ -274,6 +319,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                           <ShoppingBag className="w-3 h-3" />
                           Jual
                         </button>
+                        </>}
                         <button
                           type="button"
                           onClick={() => onDeleteProduct(p.id)}
