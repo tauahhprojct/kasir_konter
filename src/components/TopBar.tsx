@@ -27,7 +27,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenNewTransaction,
 }) => {
   return (
-    <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
+    <header className="app-topbar sticky top-0 z-20 px-4 sm:px-6 lg:px-8 h-[76px] flex items-center justify-between gap-6">
       <div className="flex items-center gap-2 text-sm min-w-0">
         <span className="font-bold text-slate-900 lg:hidden whitespace-nowrap shrink-0">
           KasirKonter
@@ -58,7 +58,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           type="button"
           onClick={onOpenNewTransaction}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl shadow-xs transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-xl shadow-lg shadow-teal-900/15 transition-all hover:-translate-y-0.5 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           <Plus className="w-4 h-4 shrink-0" />
           <span>Catat Transaksi</span>

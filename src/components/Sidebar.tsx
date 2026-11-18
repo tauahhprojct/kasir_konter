@@ -82,11 +82,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      <aside className="hidden lg:flex lg:flex-col lg:w-[260px] lg:shrink-0 bg-white border-r border-slate-200/90 min-h-screen justify-between">
+      <aside className="app-sidebar hidden lg:flex lg:flex-col lg:w-[270px] lg:shrink-0 min-h-screen justify-between">
         <div>
-          <div className="px-5 py-5 border-b border-slate-100">
-            <div className="text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap">
-              KasirKonter
+          <div className="px-5 py-6 border-b border-white/10">
+            <div className="flex items-center gap-3 text-lg font-bold tracking-tight text-white whitespace-nowrap">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-400 text-slate-950 shadow-lg shadow-teal-950/20">K</span>
+              <span>Kasir<span className="text-teal-300">Konter</span></span>
             </div>
             {editingName ? (
               <form
@@ -130,10 +131,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => onSelectTab(item.id)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
+                  className={`app-navitem w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${
                     isActive
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                      ? 'is-active bg-white/10 text-white shadow-inner'
+                      : 'text-slate-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   <span className="flex items-center gap-2.5 min-w-0">
@@ -272,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile compact bottom navigation (56px height) */}
       <nav
         aria-label="Navigasi seluler"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 h-14 px-2 flex items-center justify-around"
+        className="app-mobile-nav lg:hidden fixed bottom-0 inset-x-0 z-30 backdrop-blur-xl h-16 px-2 flex items-center justify-around"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -282,8 +283,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               type="button"
               onClick={() => onSelectTab(item.id)}
-              className={`flex flex-col items-center justify-center min-w-[56px] h-11 px-1 rounded-md text-[11px] font-medium transition-colors ${
-                isActive ? 'text-teal-700' : 'text-slate-500 hover:text-slate-900'
+              className={`flex flex-col items-center justify-center min-w-[56px] h-12 px-2 rounded-xl text-[10px] font-semibold transition-colors ${
+                isActive ? 'bg-teal-50 text-teal-800' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               <Icon className="w-4 h-4 mb-0.5" />

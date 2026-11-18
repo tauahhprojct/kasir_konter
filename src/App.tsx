@@ -74,7 +74,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F8FA] text-slate-900 flex">
+    <div className="app-shell min-h-screen text-slate-900 flex">
       <Sidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
@@ -101,7 +101,7 @@ export default function App() {
           onOpenNewTransaction={() => handleOpenModal('sale', null)}
         />
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-8 max-w-[1440px] w-full mx-auto">
+        <main className="app-main flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-8 max-w-[1440px] w-full mx-auto">
           {cloudError && (
             <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
               {cloudError}

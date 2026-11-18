@@ -292,7 +292,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* 4-Column Core KPI Strip with Dark Focal Anchor Card */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+        <div className="app-kpi-primary bg-slate-900 text-white rounded-2xl p-6 shadow-sm flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-300">
             Laba Bersih Riil ({periodLabel})
           </div>
@@ -309,7 +309,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+        <div className="app-kpi-card bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-500">
             Omzet Penjualan ({periodLabel})
           </div>
@@ -323,7 +323,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+        <div className="app-kpi-card bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-500">
             Pengeluaran &amp; Prive ({periodLabel})
           </div>
@@ -335,7 +335,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
+        <div className="app-kpi-card bg-white border border-slate-200/90 rounded-2xl p-6 shadow-[0_1px_2px_rgba(15,23,42,0.03)] flex flex-col justify-between">
           <div className="text-xs font-medium text-slate-500">
             Total Kasbon Belum Lunas
           </div>
